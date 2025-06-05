@@ -1,0 +1,85 @@
+# Kontrolli, kas Selenium on saadaval, ja paigalda see koos NuGet-iga, kui puudub
+if (-not (Get-Module -ListAvailable -Name Selenium)) {
+    Install-PackageProvider -Name NuGet -Force -Scope CurrentUser
+    Install-Module -Name Selenium -Force -Scope CurrentUser
+}
+Import-Module Selenium
+
+# Määra ChromeDriver'i kataloog (eeldatakse, et chromedriver.exe asub skripti käivituskaustas)
+$chromeDriverPath = (Get-Location).Path
+
+try {
+    # Alusta Chrome-brauserit Seleniumi kaudu
+    $driver = Start-SeChrome -WebDriverDirectory $chromeDriverPath
+
+    # Mine W3Schools HTML vormide näidislehele
+    $driver.Navigate().GoToUrl("https://www.w3schools.com/html/html_forms.asp")
+
+    # Lühike ooteaeg, et leht saaks avaneda
+    Start-Sleep -Seconds 1
+
+    # Proovi vajutada küpsiste nõusoleku nuppu (ID-ga "accept-choices")
+    try {
+        $cookieButton = $driver.FindElementById("accept-choices")
+        if ($cookieButton) {
+            $cookieButton.Click()
+            # Lisa veel väike paus, et küpsiste teavitus kaoks
+            Start-Sleep -Seconds 1
+        }
+    }
+    catch {
+        # Kui nuppu pole, jätka ilma veateavituseta
+    }
+
+    # Väike viivitus, et muud elemendid saaksid korralikult laadida
+    Start-Sleep -Seconds 1
+
+    # Otsi "First name" ja "Last name" sisestusväljad, oodates vajadusel nende laadimist
+    $firstNameField = $null
+    $lastNameField  = $null
+
+    $timeout = 10
+    $elapsed = 0
+    while ((-not $firstNameField -or -not $lastNameField) -and ($elapsed -lt $timeout)) {
+        try {
+            if (-not $firstNameField) { $firstNameField = $driver.FindElementById("fname") }
+            if (-not $lastNameField)  { $lastNameField  = $driver.FindElementById("lname") }
+        }
+        catch {
+            Start-Sleep -Seconds 1
+            $elapsed++
+        }
+    }
+
+    if (-not $firstNameField -or -not $lastNameField) {
+        throw "Välju ei leitud 10 sekundi jooksul."
+    }
+
+    # Täida tekstiväljad andmetega
+    $firstNameField.Clear()
+    $lastNameField.Clear()
+    $firstNameField.SendKeys("stefan")
+    $lastNameField.SendKeys("anni")
+
+    # Otsi ja vajuta vormi saatmise nuppu
+    $submitButton = $driver.FindElementByXPath("//input[@type='submit' and @value='Submit']")
+    $submitButton.Click()
+
+    # Oota hetk, et tulemused ilmuksid
+    Start-Sleep -Seconds 2
+
+    # Väljasta kogu <body> elemendi tekst konsooli
+    $bodyText = $driver.FindElementByTagName("body").Text
+    Write-Host "Tulemuse tekst:"
+    Write-Host $bodyText
+}
+catch {
+    Write-Host "Viga: $($_.Exception.Message)"
+}
+finally {
+    Start-Sleep -Seconds 3
+    # Lõpeta Chrome'i sessioon
+    if ($driver) {
+        $driver.Quit()
+    }
+}
