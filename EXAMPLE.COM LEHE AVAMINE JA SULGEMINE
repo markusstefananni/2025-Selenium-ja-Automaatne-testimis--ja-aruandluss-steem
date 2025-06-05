@@ -1,0 +1,42 @@
+# Kontrolli, kas Selenium moodul on saadaval, ja paigalda see vajadusel koos NuGet toega
+if (-not (Get-Module -ListAvailable -Name Selenium)) {
+    Install-PackageProvider -Name NuGet -Force -Scope CurrentUser
+    Install-Module -Name Selenium -Force -Scope CurrentUser
+}
+
+# Lae Selenium moodul kasutamiseks
+Import-Module Selenium
+
+# Määra, kus asub ChromeDriver (kasutatakse jooksvat kausta)
+$chromeDriverPath = (Get-Location).Path
+
+try {
+    # Käivita Chrome-brauser kasutades Seleniumi ja määratud ChromeDriver kausta
+    $driver = Start-SeChrome -WebDriverDirectory $chromeDriverPath
+
+    # Ava määratud veebiaadress
+    $driver.Navigate().GoToUrl("https://example.com")
+
+    # Salvesta ja kuva veebilehe pealkiri
+    $title = $driver.Title
+    Write-Host "Lehe pealkiri: $title"
+
+    # Kontrolli, kas pealkiri sisaldab sõna 'Example'
+    if ($title -like "*Example*") {
+        Write-Host "Test läbitud"
+    } else {
+        Write-Host "Test ebaõnnestus"
+    }
+}
+catch {
+    # Vea korral kuvatakse veateade
+    Write-Host "Viga: $($_.Exception.Message)"
+}
+finally {
+    # Oota mõned sekundid enne brauseri sulgemist
+    Start-Sleep -Seconds 5
+    if ($driver) {
+        # Sulge brauseri seanss
+        $driver.Quit()
+    }
+}
